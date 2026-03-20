@@ -2,15 +2,14 @@ import streamlit as st
 import torch
 import numpy as np
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+import os
 
-# ── Page config ──────────────────────────────────────────
 st.set_page_config(
     page_title="Emotion Analyser",
     page_icon="🧠",
     layout="centered"
 )
 
-# ── Emotion settings ──────────────────────────────────────
 EMOTION_EMOJI = {
     "joy"      : "😊",
     "sadness"  : "😢",
@@ -29,16 +28,15 @@ EMOTION_COLOR = {
     "surprise" : "#00CED1"
 }
 
-# ── Load model ────────────────────────────────────────────
 @st.cache_resource
 def load_model():
-    tokenizer = DistilBertTokenizer.from_pretrained("emotion_model")
-    model     = DistilBertForSequenceClassification.from_pretrained("emotion_model")
-    classes   = np.load("emotion_model/label_classes.npy", allow_pickle=True)
+    model_path = "vaishnavikongalla/mental-health-emotion-analyser"
+    tokenizer  = DistilBertTokenizer.from_pretrained(model_path)
+    model      = DistilBertForSequenceClassification.from_pretrained(model_path)
+    classes    = np.load("label_classes.npy", allow_pickle=True)
     model.eval()
     return tokenizer, model, classes
 
-# ── Predict function ──────────────────────────────────────
 def predict_emotion(text, tokenizer, model, classes):
     inputs = tokenizer(
         text,
@@ -52,25 +50,21 @@ def predict_emotion(text, tokenizer, model, classes):
         probs   = torch.softmax(outputs.logits, dim=1)[0]
         pred    = torch.argmax(probs).item()
 
-    emotion     = classes[pred]
-    confidence  = probs[pred].item() * 100
-    all_scores  = {classes[i]: probs[i].item() * 100 for i in range(len(classes))}
+    emotion    = classes[pred]
+    confidence = probs[pred].item() * 100
+    all_scores = {classes[i]: probs[i].item() * 100 for i in range(len(classes))}
     return emotion, confidence, all_scores
 
-# ── UI ────────────────────────────────────────────────────
 st.title("🧠 Mental Health Emotion Analyser")
 st.markdown("*Detect emotions in text using fine-tuned DistilBERT — 92.60% accuracy*")
 st.divider()
 
-# Load model
 with st.spinner("Loading AI model..."):
     tokenizer, model, classes = load_model()
 st.success("✅ Model loaded!")
 
-# Tabs
 tab1, tab2 = st.tabs(["Single Analysis", "Batch Analysis"])
 
-# ── Tab 1 — Single ────────────────────────────────────────
 with tab1:
     st.subheader("Analyse a single sentence")
     user_input = st.text_area(
@@ -88,7 +82,6 @@ with tab1:
                     user_input, tokenizer, model, classes
                 )
 
-            # Result
             emoji = EMOTION_EMOJI.get(emotion, "🤔")
             color = EMOTION_COLOR.get(emotion, "#888")
 
@@ -100,7 +93,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            # All emotion scores
             st.subheader("All emotion scores:")
             for emo, score in sorted(all_scores.items(),
                                      key=lambda x: x[1], reverse=True):
@@ -111,7 +103,6 @@ with tab1:
                 with col2:
                     st.write(f"{score:.1f}%")
 
-# ── Tab 2 — Batch ─────────────────────────────────────────
 with tab2:
     st.subheader("Analyse multiple sentences at once")
     batch_input = st.text_area(
@@ -139,7 +130,6 @@ with tab2:
             import pandas as pd
             st.dataframe(pd.DataFrame(results), use_container_width=True)
 
-# ── Footer ────────────────────────────────────────────────
 st.divider()
 st.markdown(
     "*Built by Vaishnavi Kongalla | DistilBERT | HuggingFace Transformers*"
